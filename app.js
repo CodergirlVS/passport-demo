@@ -8,6 +8,17 @@ const LocalStrategy = require("passport-local").Strategy;
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const bcrypt = require("bcryptjs");
+const MongoDBStore = require('connect-mongodb-session')(session)
+//to store the session data in Mongo db
+var store = new MongoDBStore({
+  uri: process.env.MONGO_URI,
+  collection: 'sessions'
+});
+
+// Catch errors
+store.on('error', function (error) {
+  console.log(error);
+});
 
 mongoose.connect(mongoDb, { useUnifiedTopology: true, useNewUrlParser: true });
 const db = mongoose.connection;
@@ -26,11 +37,13 @@ const app = express();
 app.set("views", __dirname);
 app.set("view engine", "ejs");
 
+//save the session in mongo
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
+    store: store,
   })
 );
 app.use(passport.initialize());
