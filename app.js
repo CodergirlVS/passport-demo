@@ -38,7 +38,7 @@ app.use(function(req, res, next) {
   });
 
 //routes
-app.get('/', (req, res) => res.render('index', {user: req.user}));
+app.get('/', (req, res) => res.render('index'));
 
 app.get("/sign-up", (req, res) => res.render("sign-up-form"));
 
