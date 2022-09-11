@@ -5,6 +5,12 @@
     <title></title>
   </head>
   <body>
+    <a href="/restricted"><h2>Restricted Page</h2></a>
+
+    <% messages.forEach((msg) =>{ %>
+      <p><%= msg %></p>
+   <% }) %>
+
     <% if (currentUser) {%>
     <h1>WELCOME BACK <%= currentUser.username %></h1>
     <a href="/log-out">LOG OUT</a>
@@ -18,7 +24,6 @@
       <button>Log In</button>
       <a href="/sign-up">sign-up</a>
     </form>
-    
     <% } %>
   </body>
 </html>

@@ -1,23 +1,24 @@
-require('dotenv').config();
+require("dotenv").config();
 const mongoDb = process.env.MONGO_URI;
-const express = require('express');
-const path = require('path');
+const express = require("express");
+const path = require("path");
 const session = require("express-session");
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
-const mongoose = require("mongoose")
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
+const bcrypt = require("bcryptjs");
 
-mongoose.connect(mongoDb, {useUnifiedTopology: true, useNewUrlParser: true});
+mongoose.connect(mongoDb, { useUnifiedTopology: true, useNewUrlParser: true });
 const db = mongoose.connection;
-db.on('error', console.error.bind(console, "mongo connection error"));
+db.on("error", console.error.bind(console, "mongo connection error"));
 
 const User = mongoose.model(
-    "User",
-    new Schema({
-        username: {type: String, required: true},
-        password: {type: String, requried: true}
-    })
+  "User",
+  new Schema({
+    username: { type: String, required: true },
+    password: { type: String, requried: true },
+  })
 );
 
 const app = express();
@@ -25,84 +26,120 @@ const app = express();
 app.set("views", __dirname);
 app.set("view engine", "ejs");
 
-app.use(session({ secret: process.env.SESSION_SECRET, resave: false, saveUninitialized: true }));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: true,
+  })
+);
 app.use(passport.initialize());
 app.use(passport.session());
-app.use(express.urlencoded({extended: false}));
+app.use(express.urlencoded({ extended: false }));
 
 //middleware
 
-app.use(function(req, res, next) {
-    res.locals.currentUser = req.user;
-    next();
-  });
+app.use(function (req, res, next) {
+  res.locals.currentUser = req.user;
+  next();
+});
+
+const authMiddleware = (req, res, next) => {
+    if (!req.user) {
+      if (!req.session.messages) {
+        req.session.messages = []
+      }
+      req.session.messages.push("You can't access that page before logon.")
+      res.redirect('/')
+    } else {
+      next()
+    }
+  }
 
 //routes
-app.get('/', (req, res) => res.render('index'));
+app.get("/", (req, res) => {
+    let messages = [];
+    if(req.session.messages){
+        messages = req.session.messages
+        req.session.messages= [];
+    }
+    res.render("index", {messages})
+});
 
 app.get("/sign-up", (req, res) => res.render("sign-up-form"));
 
-//signup controller
-app.post("/sign-up", (req, res, next) => {
-    const user = new User({
+app.get('/restricted', authMiddleware, (req, res) => {
+    if (!req.session.pageCount) {
+      req.session.pageCount = 1
+    } else {
+      req.session.pageCount++
+    }
+    res.render('restricted', { pageCount: req.session.pageCount })
+  })
+
+//controller
+app.post("/sign-up", async (req, res, next) => {
+  try {
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+    await User.create({
       username: req.body.username,
-      password: req.body.password
-    }).save(err => {
-      if (err) { 
-        return next(err);
-      }
-      res.redirect("/");
+      password: hashedPassword,
     });
+    res.redirect("/");
+  } catch (err) {
+    return next(err);
+  }
+});
+
+app.post(
+  "/log-in",
+  passport.authenticate("local", {
+    successRedirect: "/",
+    failureRedirect: "/",
+    failureMessage: true
+  })
+);
+
+app.get("/log-out", (req, res, next) => {
+  req.session.destroy(function (err) {
+    if (err) {
+      return next(err);
+    }
+    res.redirect("/");
   });
+});
 
-  app.post(
-    "/log-in",
-    passport.authenticate("local", {
-      successRedirect: "/",
-      failureRedirect: "/"
-    })
-  );
-
-  app.get("/log-out", (req, res, next) => {
-    req.logout(function (err) {
+//setting up the LocalStrategy
+//function acts a bit like a middleware and will be called for us when we ask passport to do the authentication later.
+passport.use(
+  new LocalStrategy((username, password, done) => {
+    User.findOne({ username: username }, (err, user) => {
       if (err) {
-        return next(err);
+        return done(err);
       }
-      res.redirect("/");
-    });
-  });
-
-  //setting up the LocalStrategy
-  //function acts a bit like a middleware and will be called for us when we ask passport to do the authentication later.
-  passport.use(
-    new LocalStrategy((username, password, done) => {
-      User.findOne({ username: username }, (err, user) => {
-        if (err) { 
-          return done(err);
-        }
-        if (!user) {
-          return done(null, false, { message: "Incorrect username" });
-        }
-        if (user.password !== password) {
+      if (!user) {
+        return done(null, false, { message: "Incorrect username" });
+      }
+      bcrypt.compare(password, user.password, (err, result) => {
+        if (result) {
+          return done(null, user);
+        } else {
           return done(null, false, { message: "Incorrect password" });
         }
-        return done(null, user);
       });
-    })
-  );
-
-  //Sessions and serialization
-  passport.serializeUser(function(user, done) {
-    done(null, user.id);
-  });
-  
-  passport.deserializeUser(function(id, done) {
-    User.findById(id, function(err, user) {
-      done(err, user);
     });
+  })
+);
+
+//Sessions and serialization
+passport.serializeUser(function (user, done) {
+  done(null, user.id);
+});
+
+passport.deserializeUser(function (id, done) {
+  User.findById(id, function (err, user) {
+    done(err, user);
   });
+});
 
-
-
-app.listen(3000, () => console.log("app listening on port 3000!"))
-
+app.listen(3000, () => console.log("app listening on port 3000!"));
