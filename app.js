@@ -34,7 +34,7 @@ const User = mongoose.model(
 
 const app = express();
 //connect to views
-app.set("views", __dirname);
+// app.set("views", __dirname);
 app.set("view engine", "ejs");
 
 //save the session in mongo
@@ -76,10 +76,10 @@ app.get("/", (req, res) => {
         messages = req.session.messages
         req.session.messages= [];
     }
-    res.render("index", {messages})
+    res.render("pages/index", {messages})
 });
 
-app.get("/sign-up", (req, res) => res.render("sign-up-form"));
+app.get("/sign-up", (req, res) => res.render("pages/sign-up-form"));
 
 app.get('/restricted', authMiddleware, (req, res) => {
     if (!req.session.pageCount) {
@@ -87,7 +87,7 @@ app.get('/restricted', authMiddleware, (req, res) => {
     } else {
       req.session.pageCount++
     }
-    res.render('restricted', { pageCount: req.session.pageCount })
+    res.render('pages/restricted', { pageCount: req.session.pageCount })
   })
 
 //controller
